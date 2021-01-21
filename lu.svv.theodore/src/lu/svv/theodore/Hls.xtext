@@ -1,0 +1,318 @@
+// Copyright by University of Luxembourg 2019-2020.
+// Developed by Claudio Menghi, claudio.menghi@uni.lu, University of Luxembourg.
+// Developed by Enrico Vigano, enrico.vigano@ext.uni.lu, University of Luxembourg
+// Developed by Domenico Bianculli, domenico.bianculli@uni.lu, University of Luxembourg.
+// Developed by Lionel Briand,lionel.briand@uni.lu, University of Luxembourg.
+
+
+
+grammar lu.svv.theodore.Hls with org.eclipse.xtext.common.Terminals
+
+generate hls "http://www.theodore.svv.lu/theodore"
+
+Hls:
+  instructions=SavingInstructions
+  samplestep=SampleStep
+  requirements+=Requirement*
+  traces += Trace*
+  ;
+
+SavingInstructions:
+ "Goal:" instructions=("save"|"generate")
+;
+
+SampleStep:
+	s="Sample_Step:" sample=('variable'|'fixed-manual'|'fixed-min')
+;
+
+
+Trace:
+  "Trace" name=ID filePath=STRING ('SampleStep=' sampleStep=Value unit=('[h]'|'[min]'|'[s]'|'[ms]'|'[micros]'|'[nanos]'))?
+  '{' ('Properties=' '{' requirementref+=[Requirement] (',' requirementref+=[Requirement])* '}')?'}'
+ ;
+
+VariableDefinition returns Variable:
+	SampleVariable| TimeVariable | Signal |NumericVariable
+;
+
+
+SampleVariable returns SimpleVariable:
+  'Index' {SampleVariable} name=ID  ";"
+;
+
+TimeVariable returns SimpleVariable:
+  'Timestamp' {TimeVariable} name=ID  ";"
+;
+
+NumericVariable returns SimpleVariable:
+  'Num' {NumericVariable} name=ID  ";"
+;
+
+Signal returns Variable:
+	'Signal' {Signal} name=ID ('Interpolation' interpolationType=('Linear'|'Constant'))?";"
+;
+
+Requirement:
+   name=ID  '::=' '{' variables+=VariableDefinition* ('Requirement' '::=' notes=STRING ';')? (spec=Specitication)? '}'
+;
+
+Specitication returns Specitication:
+	('Specification' '::='expression=Expression ';')
+;
+
+Expression returns Expression: Implication | Quantifier;
+
+Quantifier returns Expression:
+ TimeQuantifier | SampleQuantifier | VariableQuantifier;
+
+TimeQuantifier returns Expression: (
+   ({TimeQuantifier} op=("ForAll"|"Exists") 'Timestamp' function=[Variable]
+  ("In" bracketdown=("["|"(") lower=TimeTermPlusOrMinus "," upper=TimeTermPlusOrMinus bracketup=("]"|")"))?
+  (":" suchthat=Expression)));
+
+SampleQuantifier returns Expression: (
+  ({SampleQuantifier} op=("ForAll"|"Exists") 'Index' function=[Variable]
+  ("In" bracketdown=("["|"(") lower=SampleTermPlusOrMinus "," upper=SampleTermPlusOrMinus bracketup=("]"|")"))?
+  (":" suchthat=Expression)));
+
+VariableQuantifier returns Expression: (
+  ({VariableQuantifier} op=("ForAll"|"Exists") 'Value' function=[Variable]
+  ("In" bracketdown=("["|"(") lower=ValueTermPlusOrMinus "," upper=ValueTermPlusOrMinus bracketup=("]"|")"))?
+  (":" suchthat=Expression)));
+
+Implication returns Expression:
+	 Or ({Implication.left=current} op=("->") right=Or)*;
+
+Or returns Expression:
+  And ({Or.left=current} op=("Or") right=And)*
+;
+
+And returns Expression:
+  Negation ({And.left=current} op=("And") right=Negation)*;
+
+Negation returns Expression:
+  Primary | ({Neg}  op="Not"  '(' neg=Primary ')');
+
+Primary returns Expression:
+	TermRelation | '(' Expression ')'
+;
+
+TermRelation returns Expression:
+   Term {TermRelation.left=current} op=(">="|"<="|">"|"<" | "=="|"!=")
+    right=Term
+     |  Spike
+ 	 |  Oscillation
+ 	 |  Rise
+ 	 |  Fall
+ 	 |  Overshoot
+  	 |  Undershoot
+   ;
+Spike returns Expression:
+	{Spike} "spike" "in" "interval" bracketdown=("["|"(")  lowertime=TimeTermPlusOrMinus "," uppertime=TimeTermPlusOrMinus   bracketup=("]"|")")  "and" "signal" function=[Signal]  ("with" "width" opwidth=(">="|"<="|">"|"<" | "=="|"!=") width=Value | "with" "amplitude" opamp=(">="|"<="|">"|"<" | "=="|"!=") ampl=Value | ("with" "width" opwidth=(">="|"<="|">"|"<" | "=="|"!=") width=Value "and" "amplitude" opamp=(">="|"<="|">"|"<" | "=="|"!=") ampl=Value))?  ;
+
+Oscillation returns Expression:
+	{Oscillation} "oscillation" "in" "interval" bracketdown=("["|"(")  lowertime=TimeTermPlusOrMinus "," uppertime=TimeTermPlusOrMinus   bracketup=("]"|")")  "and" "signal" function=[Signal]  ("with" "p2pAmp" opp2pamp=(">="|"<="|">"|"<" | "=="|"!=") oscp2pAmp=Value | "with" "period" opperiod=(">="|"<="|">"|"<" | "=="|"!=") oscperiod=Value | ("with" "p2pAmp" opp2pamp=(">="|"<="|">"|"<" | "=="|"!=")  oscp2pAmp=Value "and" "period" opperiod=(">="|"<="|">"|"<" | "=="|"!=") oscperiod=Value))?  ;
+
+Rise returns Expression:
+	{Rise}"signal" function=[Signal] "rises" mon=("monotonically")? "in" "interval" bracketdown=("["|"(") lowertime=TimeTermPlusOrMinus "," uppertime=TimeTermPlusOrMinus  bracketup=("]"|")") "reaching"  valuerise=Value  ;
+
+Fall returns Expression:
+	{Fall} "signal" function=[Signal] "falls" mon=("monotonically")? "in" "interval" bracketdown=("["|"(") lowertime=TimeTermPlusOrMinus "," uppertime=TimeTermPlusOrMinus  bracketup=("]"|")")  "reaching"  valuerise=Value  ;
+
+Overshoot returns Expression:
+	{Overshoot} "signal" function=[Signal] "overshoots" mon=("monotonically")? "in" "interval" bracketdown=("["|"(")  lowertime=TimeTermPlusOrMinus "," uppertime=TimeTermPlusOrMinus   bracketup=("]"|")")  "value"  value1=ValueTerm "by"  value2=ValueTerm  ;
+
+Undershoot returns Expression:
+	{Undershoot} "signal" function=[Signal] "undershoots" mon=("monotonically")? "in" "interval" bracketdown=("["|"(") lowertime=TimeTermPlusOrMinus "," uppertime=TimeTermPlusOrMinus  bracketup=("]"|")")  "value"  value1=ValueTerm "by"  value2=ValueTerm  ;
+
+
+Term returns Expression:
+	GenericTerm ;
+
+
+
+GenericTerm returns Expression:
+  {GenericTerm} genericterm=GenericTermPlusOrMinus
+  ;
+
+GenericTermPlusOrMinus returns Expression:
+    GenericTermMulOrDiv (
+    {GenericTermPlusOrMinus.left=current} op=('+'|'-')
+    right=GenericTermMulOrDiv
+  )*;
+
+GenericTermMulOrDiv returns Expression:
+  GenericTermExponential (
+    {GenericTermMulOrDiv.left=current} op=('*'|'/')
+    right=GenericTermExponential
+  )*
+;
+
+GenericTermExponential returns Expression:
+  GenericTermBrackets ({GenericTermExponential.left=current} "^("right=GenericTermBrackets")")*
+;
+
+GenericTermBrackets returns Expression:
+	GenericTermGetSample|{GenericTermBrackets} first=('(') expression=GenericTermPlusOrMinus last=(')');
+
+GenericTermGetSample returns Expression:
+	GenericTermAtomic | RetrieveSampleFromTimeStamp | RetrieveTimeStampFromSample;
+
+RetrieveSampleFromTimeStamp: 't2i' {GenericTermRetrieveSampleFromTimeStamp} '(' expression=TimeTerm ')';
+
+RetrieveTimeStampFromSample: 'i2t' 	{GenericTermRetrieveTimeStampFromSample}  '(' expression=SampleTerm ')';
+
+GenericTermAtomic returns Expression:
+Value
+| {Variable} variable=[Variable]
+| ValueTermGetSampleT
+| ValueTermGetSampleS
+;
+
+
+
+/*---------------------------- */
+// value term
+/*---------------------------- */
+ValueTerm returns Expression:
+  ValueTermPlusOrMinus;
+
+ValueTermPlusOrMinus returns Expression:
+    ValueTermMulOrDiv (
+    {ValueTermPlusOrMinus.left=current} op=('+'|'-')
+    right=ValueTermMulOrDiv
+  )*;
+
+ValueTermMulOrDiv returns Expression:
+  ValueTermExponential (
+    {ValueTermMulOrDiv.left=current} op=('*'|'/')
+    right=ValueTermExponential
+  )*
+;
+
+ValueTermExponential returns Expression:
+  ValueTermBrackets ({ValueTermExponential.left=current} "^("right=ValueTermBrackets")")*
+;
+
+ValueTermBrackets returns Expression:
+	ValueTermAtomic | {ValueTermBrackets} first=('(') expression=ValueTerm last=(')');
+
+ValueTermAtomic returns Expression:
+	ValueTermGetSampleT |
+	ValueTermGetSampleS|
+	ValueNumericTerm|
+	Value;
+
+
+
+
+ValueTermGetSampleT returns Expression:
+	{ValueTermGetSampleT} function=[Signal] first='(' '@timestamp' inside=TimeTerm last=')';
+
+ValueTermGetSampleS returns Expression:
+	{ValueTermGetSampleS} function=[Signal] first='(' '@index' inside=SampleTerm last=')';
+
+
+ValueNumericTerm returns Expression:
+	{ConstantVariableRef} constantVariable=[Variable]
+;
+/*---------------------------- */
+// TimeTerm
+/*---------------------------- */
+TimeTerm returns Expression:
+  {TimeTerm} timeTerm=TimeTermPlusOrMinus ;
+
+TimeTermPlusOrMinus returns Expression:
+    TimeTermMulOrDiv (
+    {TimeTermPlusOrMinus.left=current} op=('+'|'-')
+    right=TimeTermMulOrDiv
+  )* ;
+
+
+
+
+
+
+
+
+TimeTermMulOrDiv returns Expression:
+  TimeTermExponential (
+    {TimeTermMulOrDiv.left=current} op=('*'|'/')
+    right=TimeTermExponential
+  )*
+;
+
+TimeTermExponential returns Expression:
+  TimeTermBrackets ({TimeTermExponential.left=current} "^("right=TimeTermBrackets")")*
+;
+
+TimeTermBrackets returns Expression:
+TimeTermGetSample |{TimeTermBrackets} '(' expression=TimeTermPlusOrMinus ')'
+;
+
+TimeTermGetSample returns Expression:
+TimeTermAtomic | RetrieveTimeStampFromSample
+;
+
+TimeTermAtomic returns Expression:
+Value
+| {TimeVariableRef} timeVariable=[TimeVariable] (unit=('[h]'|'[min]'|'[s]'|'[ms]'|'[micros]'|'nanos'))?
+;
+
+
+
+/*---------------------------- */
+// SampleTerm
+/*---------------------------- */
+SampleTerm returns Expression:
+  {SampleTerm} sampleterm=SampleTermPlusOrMinus
+  ;
+
+
+
+
+SampleTermPlusOrMinus returns Expression:
+    SampleTermMulOrDiv (
+    {SampleTermPlusOrMinus.left=current} op=('+'|'-')
+    right=SampleTermMulOrDiv
+  )*  ;
+
+
+
+
+SampleTermMulOrDiv returns Expression:
+  SampleTermExponential (
+    {SampleTermMulOrDiv.left=current} op=('*'|'/')
+    right=SampleTermExponential
+  )*
+;
+
+SampleTermExponential returns Expression:
+  SampleTermBrackets ({SampleTermExponential.left=current} "^("right=SampleTermBrackets")")*
+;
+
+SampleTermBrackets returns Expression:
+	SampleTermGetSample|{SampleTermBrackets} first=('(') expression=SampleTermPlusOrMinus last=(')');
+
+SampleTermGetSample returns Expression:
+	SampleTermAtomic | RetrieveSampleFromTimeStamp;
+
+SampleTermAtomic returns Expression:
+Value
+| {SampleVariableRef} sampleVariable=[SampleVariable]
+;
+
+
+
+/*---------------------------- */
+// value
+/*---------------------------- */
+Value returns Expression:
+
+'FinalIndex' {SampleTraceEnd}|
+{IntNumber} value=INT (unit=('[h]'|'[min]'|'[s]'|'[ms]'|'[micros]'|'nanos'))? |
+{DoubleNumber} upper=INT '.' lower=INT (unit=('[h]'|'[min]'|'[s]'|'[ms]'|'[micros]'|'nanos'))?|
+{NegativeIntNumber} '(-' value=INT ')'(unit=('[h]'|'[min]'|'[s]'|'[ms]'|'[micros]'|'nanos'))?|
+{NegativeDoubleNumber}'(-' upper=INT '.' lower=INT ')'(unit=('[h]'|'[min]'|'[s]'|'[ms]'|'[micros]'|'nanos'))?|
+'FinalTimestamp' {TimeTraceEnd}
+;

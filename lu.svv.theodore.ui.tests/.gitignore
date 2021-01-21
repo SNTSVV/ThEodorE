@@ -1,0 +1,5 @@
+/test-bin/
+/.settings/
+bin/*
+src-gen/org/xtext/ui/tests/Hls2smtUiInjectorProvider.java
+/bin/

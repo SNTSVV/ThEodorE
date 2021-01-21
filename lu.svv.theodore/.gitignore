@@ -1,0 +1,7 @@
+/bin/
+/.settings/
+/.classpath
+/.launch/
+/plugin.xml_gen
+/model/generated/*
+/src-gen/

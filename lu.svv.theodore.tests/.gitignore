@@ -1,0 +1,4 @@
+/test-bin/
+/.settings/
+bin/
+src-gen/org/xtext/tests/Hls2smtInjectorProvider.java

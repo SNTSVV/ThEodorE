@@ -1,0 +1,5 @@
+/bin/
+/.settings/
+src/
+src-gen/*
+META-INF/MANIFEST.MF
