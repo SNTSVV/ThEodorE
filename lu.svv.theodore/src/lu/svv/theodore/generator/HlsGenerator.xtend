@@ -1522,14 +1522,14 @@ Implies(And(" + sample1increases + "<" + sample2increases + "," + sample2increas
 							headers.add("t");
 							var dog = Double.parseDouble(el.toString)
 							firstTimeStamp = dog
-							signalEncoding.append(space + "timestamps=Array('timestamps', RealSort(), IntSort())\n");
+							signalEncoding.append(space + "timestamps=Array('timestamps', IntSort(), RealSort())\n");
 							time = false
 						} else {
 							if (name) {
 								headers.add(el);
 								el ->
 									signalEncoding.append(
-										space + el.toString + "=Array('" + el.toString + "', RealSort(), IntSort())\n");
+										space + el.toString + "=Array('" + el.toString + "', IntSort(), RealSort())\n");
 								name = false
 							} else {
 								name = true
